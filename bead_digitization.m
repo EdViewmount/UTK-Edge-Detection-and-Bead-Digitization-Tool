@@ -50,19 +50,17 @@ sample_data = spatial_calibration(analysis_sample);
 distperpix = sample_data.distancePerPixel;
 
 savepath = uigetdir(pwd,'Select folder to save results to')
-
+beadNum = 42;
 if sample_data.multibead 
     temp_size = size(sample_data.split);
     n_beads = temp_size(1);
-
-    beadNum = 1;
 
     for i = 1:n_beads
         current_bead = sample_data.split{i};
 
         %Apply canny edge detection
         %edges =  edge(current_bead,'Canny',[0.35 0.75],25);
-        edges =  edge(current_bead,'Canny',[0.4 0.65],35);
+        edges =  edge(current_bead,'Canny',[0.4 0.5],35);
 
         fig1 = figure
         imshow(edges);
@@ -75,13 +73,17 @@ if sample_data.multibead
     end
 else
     %Apply canny edge detection
-    edges =  edge(analysis_sample,'Canny',[0.65 0.75],35);
+    %analysis_sample = imrotate(analysis_sample,-90)
+    edges =  edge(analysis_sample,'Canny',[0.05 0.75],35);
     %edges =  edge(analysis_sample,'Canny',[0.4 0.65],35)
+    imshow(analysis_sample);
 
-    figure
+    fig1 = figure
     imshow(edges);
-
-    beadDigitization(edges,distperpix,filepath)
+    beadName = strcat('Bead',num2str(beadNum))
+    filepath = strcat(savepath,'\',beadName)
+    saveas(fig1,strcat(filepath,' Edges.png'))
+    [imcoords] = beadDigitization(edges,distperpix,filepath)
     
 end
 
@@ -89,7 +91,7 @@ end
 %Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  
-function [] = beadDigitization(edges, distperpix,filepath)
+function [imcoords] = beadDigitization(edges, distperpix,filepath)
 %Get coordinates of boundary in user specified units
 [imcoords.x, imcoords.y] = binary_coordinates(edges,distperpix);
 
@@ -111,14 +113,24 @@ I = double(~edges);
 %Call again to ensure skeleton is one to one line 
 [skeletonImage,fluxImage,distImage] = extract2DSkeletonFromBinaryImage(skeletonImage);
 
+x_max = max(imcoords.x);
+idx_max = find(imcoords.x == x_max);
+mid_idx = round((idx_max(end) + idx_max(1))/2)
+y_max = imcoords.y(mid_idx);
+disp(x_max)
+disp(idx_max)
+disp(y_max)
+
 %Get coordinates of binary topological skeleton 
 [x_cent,y_cent] = binary_coordinates(skeletonImage,distperpix);
 %Downsample the line to smooth out unwanted peaks and valleys
-[x_cent,y_cent] = downsample(x_cent,y_cent,10);
-
+[x_cent,y_cent] = downsample(x_cent,y_cent,5);
+x_cent(end) = x_max;
+y_cent(end) = y_max;
+scatter(x_cent,y_cent);
 %Use Pchip interpolation to create smooth line running through the
 %downsampled topological skeleton 
-xq = 0:0.1:max(imcoords.x);
+xq = 0:0.05:max(imcoords.x);
 pp = pchip(x_cent,y_cent,xq);
 plot(xq,pp);
 
@@ -144,7 +156,7 @@ xlabel('Length (mm)')
 ylabel('Width (mm)')
 
 saveas(fig3,strcat(filepath,' Width.png'));
-T = table(length,width)
+T = table(length,width);
 writetable(T, strcat(filepath, ' Width Profile.csv'))
 
 
@@ -153,7 +165,8 @@ end
 
 function y_ctr = ideal_centerline(xq,pp)
 
-y_ctr = pp(1)*ones(1,length(xq));
+m = (pp(end) - pp(1))/(xq(end) - xq(1))
+y_ctr = m * (xq - xq(1)) + pp(1)
 
 
 end
