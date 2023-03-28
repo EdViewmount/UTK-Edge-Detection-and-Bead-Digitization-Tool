@@ -111,17 +111,18 @@ I = double(~edges);
 %Get coordinates of binary topological skeleton 
 skelPoints = [];
 [skelPoints(1,:),skelPoints(2,:)] = binary_coordinates(skeletonImage,distperpix);
-skelPoints(1,:) = skelPoints(1,:) - xmin;
+
 
 %Compute end point for center line on right side 
 x_max = max(imcoords.x);
+x_min = min(imcoords.x);
 idx_max = find(imcoords.x == x_max(1));
 mid_idx = round((idx_max(end) + idx_max(1))/2);
 y_max = imcoords.y(mid_idx);
 
-if isempty(find(skelPoints(1,:) == 0))
+if isempty(find(skelPoints(1,:) == x_min))
     %Compute end point for center line on left side 
-    idx_min = find(imcoords.x == 0);
+    idx_min = find(imcoords.x == x_min);
     mid_idx = round((idx_min(end) + idx_min(1))/2);
     y_min = imcoords.y(mid_idx);
 end
@@ -130,13 +131,13 @@ end
 skelPoints = downsample(skelPoints(1,:),skelPoints(2,:),5);
 skelPoints(1,end) = x_max(1);
 skelPoints(2,end) = y_max;
-skelPoints(1,1) = 0;
+skelPoints(1,1) = x_min(1);
 skelPoints(2,1) = y_min;
 
 %Use Pchip interpolation to create smooth line running through the
 %downsampled topological skeleton 
 centerLinePoints = [];
-centerLinePoints(1,:) = 0:0.05:max(imcoords.x);
+centerLinePoints(1,:) = min(imcoords.x):0.05:max(imcoords.x);
 centerLinePoints(2,:) = pchip(skelPoints(1,:),skelPoints(2,:),centerLinePoints(1,:));
 
 
@@ -160,10 +161,14 @@ startPts = T(1,1)*startPts;
 endPts = T(1,1)*endPts;
 
 %Shift points so that bead and centerline start at 0 
-xmin = min(imcoords.x);
-imcoords.x = imcoords.x - xmin;
-startPts = startPts - xmin;
-endPts = endPts - xmin;
+% xmin = min(imcoords.x);
+% imcoords.x = imcoords.x - xmin;
+% startPts = startPts - xmin;
+% endPts = endPts - xmin;
+% skelPoints(1,:) = skelPoints(1,:) - xmin;
+% centerLinePoints(1,:) = centerLinePoints(1,:) - xmin;
+% idealCtrLinePts(1,:) = idealCtrLinePts(1,:) - xmin;
+
 
 %Plot digitized bead outline
 fig2 = figure
@@ -203,7 +208,6 @@ ylabel('Width (mm)')
 %Compute deviation of actual center line from ideal center line 
 CenterLineDeviation = ctr_line_deviation(centerLinePoints,idealCtrLinePts);
 
-
 saveas(fig3,strcat(filepath,' Width.png'));
 T = table(Length,Width,CenterLineDeviation);
 writetable(T, strcat(filepath, ' Width Profile.csv'))
@@ -227,8 +231,6 @@ end
 function stdev = ctr_line_deviation(centerLinePoints,idealCtrLinePts)
 
 difference = centerLinePoints(2,:) - idealCtrLinePts(2,:);
-stdev = std(difference);
-
 
 end
 
